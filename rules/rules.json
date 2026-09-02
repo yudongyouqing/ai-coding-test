@@ -1,0 +1,304 @@
+{
+  "$comment": "Banner 指纹识别规则库（与程序代码完全解耦，运行时加载，可用 volume 覆盖后重启即生效，无需重新编译）。字段说明：match=RE2 正则（命名捕获组 version/product 会被提取为版本/产品）；ports=端口吻合时置信度 +0.02（上限 0.99）；priority=多条规则命中时高者优先，同优先级比置信度；confidence=规则基础置信度；os=固定 OS 提示；os_regex=从 banner 提取 OS 关键词；version_strip_prefix=版本串去前缀（用于 MariaDB 的 5.5.5- 兼容前缀）。",
+  "rules": [
+    {
+      "id": "mysql-mariadb",
+      "match": "^.{0,3}\\x00\\x0a(?P<version>[0-9][0-9A-Za-z.+-]{0,48}MariaDB[0-9A-Za-z.+-]{0,20})",
+      "protocol": "MySQL",
+      "product": "MariaDB",
+      "version_strip_prefix": "5.5.5-",
+      "ports": [3306],
+      "priority": 120,
+      "confidence": 0.93
+    },
+    {
+      "id": "mysql-server",
+      "match": "^.{0,3}\\x00\\x0a(?P<version>[0-9][0-9A-Za-z.+-]{0,48})",
+      "protocol": "MySQL",
+      "product": "MySQL",
+      "ports": [3306],
+      "priority": 110,
+      "confidence": 0.88
+    },
+    {
+      "id": "ssh-openssh",
+      "match": "^SSH-[0-9.]+-OpenSSH[_-]?(?P<version>[0-9A-Za-z.]+)?",
+      "protocol": "SSH",
+      "product": "OpenSSH",
+      "os_regex": "(?i)\\b(Ubuntu|Debian|FreeBSD|CentOS|RHEL|Red Hat|Alpine|SUSE|Fedora|Amazon|Oracle|Gentoo|Windows|Darwin)\\b",
+      "ports": [22],
+      "priority": 100,
+      "confidence": 0.93
+    },
+    {
+      "id": "ssh-dropbear",
+      "match": "(?i)^SSH-[0-9.]+-Dropbear[_-]?(?P<version>[0-9][0-9A-Za-z.]*)?",
+      "protocol": "SSH",
+      "product": "Dropbear",
+      "ports": [22],
+      "priority": 100,
+      "confidence": 0.93
+    },
+    {
+      "id": "ssh-generic",
+      "match": "^SSH-[0-9.]+-",
+      "protocol": "SSH",
+      "ports": [22],
+      "priority": 10,
+      "confidence": 0.6
+    },
+    {
+      "id": "http-nginx",
+      "match": "(?is)^HTTP/[0-9.]+ +[0-9]{3}.*Server: *nginx(/(?P<version>[0-9A-Za-z.+-]+))?",
+      "protocol": "HTTP",
+      "product": "nginx",
+      "os_regex": "(?i)\\b(Ubuntu|Debian|CentOS|FreeBSD|Amazon|Unix|Linux)\\b",
+      "ports": [80, 443, 8080, 8443],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "http-apache",
+      "match": "(?is)^HTTP/[0-9.]+ +[0-9]{3}.*Server: *Apache(/(?P<version>[0-9][0-9A-Za-z.]*))?",
+      "protocol": "HTTP",
+      "product": "Apache",
+      "os_regex": "(?i)\\b(Ubuntu|Debian|CentOS|FreeBSD|Amazon|Unix|Linux)\\b",
+      "ports": [80, 443, 8080, 8443],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "http-jetty",
+      "match": "(?is)^HTTP/[0-9.]+ +[0-9]{3}.*Server: *Jetty(/?\\(?(?P<version>[0-9][0-9A-Za-z.]*)?)?(\\)?)?",
+      "protocol": "HTTP",
+      "product": "Jetty",
+      "ports": [8080, 8443, 443, 80],
+      "priority": 100,
+      "confidence": 0.83
+    },
+    {
+      "id": "http-iis",
+      "match": "(?is)^HTTP/[0-9.]+ +[0-9]{3}.*Server: *Microsoft-IIS/(?P<version>[0-9.]+)",
+      "protocol": "HTTP",
+      "product": "Microsoft IIS",
+      "os": "Windows",
+      "ports": [80, 443, 8080],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "http-tomcat",
+      "match": "(?is)^HTTP/[0-9.]+ +[0-9]{3}.*Server: *Apache-Coyote(/[0-9.]+)?",
+      "protocol": "HTTP",
+      "product": "Apache Tomcat (Coyote)",
+      "ports": [8080, 8443],
+      "priority": 100,
+      "confidence": 0.85
+    },
+    {
+      "id": "http-lighttpd",
+      "match": "(?is)^HTTP/[0-9.]+ +[0-9]{3}.*Server: *lighttpd/(?P<version>[0-9.]+)",
+      "protocol": "HTTP",
+      "product": "lighttpd",
+      "ports": [80, 443, 8080],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "http-generic-server",
+      "match": "(?is)^HTTP/[0-9.]+ +[0-9]{3}.*?Server: *(?P<product>[^\\r\\n]{1,60})",
+      "protocol": "HTTP",
+      "product_group": "product",
+      "ports": [80, 443, 8080, 8443],
+      "priority": 20,
+      "confidence": 0.6
+    },
+    {
+      "id": "http-generic",
+      "match": "(?is)^HTTP/[0-9.]+ +[0-9]{3}",
+      "protocol": "HTTP",
+      "ports": [80, 443, 8080, 8443],
+      "priority": 10,
+      "confidence": 0.5
+    },
+    {
+      "id": "redis-noauth",
+      "match": "^-(NOAUTH|WRONGPASS|DENIED)",
+      "protocol": "Redis",
+      "product": "Redis",
+      "ports": [6379],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "redis-error",
+      "match": "^-(ERR|NOAUTH|WRONGPASS|WRONGTYPE|LOADING|DENIED|MOVED|ASK|CLUSTERDOWN|BUSY|MASTERDOWN|NOREPLICAS|SYNTAXERR|MISCONF)",
+      "protocol": "Redis",
+      "product": "Redis",
+      "ports": [6379],
+      "priority": 100,
+      "confidence": 0.68
+    },
+    {
+      "id": "redis-simple-string",
+      "match": "^\\+(PONG|OK|QUEUED|PONG)",
+      "protocol": "Redis",
+      "product": "Redis",
+      "ports": [6379],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "redis-resp-bulk",
+      "match": "^[$*][0-9-]{0,11}\r?\n",
+      "protocol": "Redis",
+      "product": "Redis",
+      "ports": [6379],
+      "priority": 60,
+      "confidence": 0.6
+    },
+    {
+      "id": "ftp-proftpd",
+      "match": "(?i)^220[ -][^\\r\\n]*?ProFTPD([ ]+(?P<version>[0-9][0-9A-Za-z.]*))?",
+      "protocol": "FTP",
+      "product": "ProFTPD",
+      "ports": [21],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "ftp-vsftpd",
+      "match": "(?i)^220[^\\r\\n]*?vsFTPd[ ]+(?P<version>[0-9.]+)",
+      "protocol": "FTP",
+      "product": "vsftpd",
+      "ports": [21],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "ftp-pureftpd",
+      "match": "(?i)^220[^\\r\\n]*?Pure-FTPd",
+      "protocol": "FTP",
+      "product": "Pure-FTPd",
+      "ports": [21],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "ftp-microsoft",
+      "match": "(?i)^220[- ][^\\r\\n]*?Microsoft FTP Service",
+      "protocol": "FTP",
+      "product": "Microsoft FTP Service",
+      "os": "Windows",
+      "ports": [21],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "smtp-postfix",
+      "match": "(?i)^220[^\\r\\n]*?Postfix",
+      "protocol": "SMTP",
+      "product": "Postfix",
+      "ports": [25, 465, 587],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "smtp-exim",
+      "match": "(?i)^220[^\\r\\n]*?Exim",
+      "protocol": "SMTP",
+      "product": "Exim",
+      "ports": [25, 465, 587],
+      "priority": 100,
+      "confidence": 0.88
+    },
+    {
+      "id": "smtp-generic",
+      "match": "(?i)^220[- ][^\\r\\n]*(ESMTP|SMTP)",
+      "protocol": "SMTP",
+      "ports": [25, 465, 587],
+      "priority": 40,
+      "confidence": 0.6
+    },
+    {
+      "id": "pop3-generic",
+      "match": "(?is)^\\+OK[^\\r\\n]*POP3",
+      "protocol": "POP3",
+      "ports": [110, 995],
+      "priority": 100,
+      "confidence": 0.8
+    },
+    {
+      "id": "imap-generic",
+      "match": "(?is)^\\* OK[^\\r\\n]*IMAP",
+      "protocol": "IMAP",
+      "ports": [143, 993],
+      "priority": 100,
+      "confidence": 0.8
+    },
+    {
+      "id": "postgresql",
+      "match": "(?i)PostgreSQL[ ]+(?P<version>[0-9]+[0-9A-Za-z.]*)",
+      "protocol": "PostgreSQL",
+      "product": "PostgreSQL",
+      "ports": [5432],
+      "priority": 100,
+      "confidence": 0.85
+    },
+    {
+      "id": "vnc-rfb",
+      "match": "^RFB[ ]?(?P<version>[0-9.]+)",
+      "protocol": "VNC",
+      "product": "VNC",
+      "ports": [5900, 5901, 5902],
+      "priority": 100,
+      "confidence": 0.9
+    },
+    {
+      "id": "telnet",
+      "match": "^\\xff[\\xfb\\xfd\\xfe]",
+      "protocol": "Telnet",
+      "priority": 60,
+      "confidence": 0.6
+    },
+    {
+      "id": "tls-handshake",
+      "match": "^\\x16\\x03[\\x00-\\x04]",
+      "protocol": "SSL/TLS",
+      "ports": [443, 8443, 993, 995],
+      "priority": 50,
+      "confidence": 0.6
+    },
+    {
+      "id": "ftp-generic",
+      "match": "(?i)^220[- ]",
+      "protocol": "FTP",
+      "ports": [21],
+      "priority": 10,
+      "confidence": 0.4
+    }
+  ],
+  "port_hints": {
+    "$comment2": "无规则命中时的兜底：仅按端口号猜测协议，置信度固定 0.3；banner 为空或完全无法识别时使用。",
+    "21": "FTP",
+    "22": "SSH",
+    "25": "SMTP",
+    "80": "HTTP",
+    "110": "POP3",
+    "143": "IMAP",
+    "443": "HTTP",
+    "465": "SMTP",
+    "587": "SMTP",
+    "993": "IMAP",
+    "995": "POP3",
+    "3306": "MySQL",
+    "3389": "RDP",
+    "5432": "PostgreSQL",
+    "5900": "VNC",
+    "6379": "Redis",
+    "8080": "HTTP",
+    "8443": "HTTP",
+    "11211": "Memcached",
+    "27017": "MongoDB"
+  }
+}

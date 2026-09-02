@@ -1,0 +1,62 @@
+name: banner-fingerprint
+
+services:
+  # 指纹识别服务：规则文件以只读 volume 挂载进容器，改规则无需重新编译镜像。
+  server:
+    build:
+      context: .
+      dockerfile: deploy/server.Dockerfile
+    image: banner-fingerprint/server:latest
+    container_name: bfp-server
+    restart: unless-stopped
+    environment:
+      ADDR: ":8080"
+      RULES_PATH: /etc/bannerfp/rules.json
+    volumes:
+      - ./rules:/etc/bannerfp:ro
+    # 端口仅发布到宿主机便于调试；client 走内部网络按服务名访问。
+    ports:
+      - "8080:8080"
+    networks:
+      - backend
+    # ---- 生产级收紧 ----
+    read_only: true            # 只读根文件系统
+    cap_drop: [ALL]            # 丢弃全部 Linux capabilities
+    security_opt:
+      - no-new-privileges:true # 禁止提权
+    pids_limit: 100
+    mem_limit: 128m
+    # ---- 真实健康检测：由二进制自身 -selfcheck 探活 /health（scratch 镜像无 shell）----
+    healthcheck:
+      test: ["CMD", "/fpserver", "-selfcheck"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 2s
+
+  # 一次性客户端：等 server 健康后，读取挂载的 /data/input.json 并输出结果表格。
+  client:
+    build:
+      context: .
+      dockerfile: deploy/client.Dockerfile
+    image: banner-fingerprint/client:latest
+    container_name: bfp-client
+    restart: "no"
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      SERVER_ADDR: http://server:8080   # 容器间访问收敛到 compose 内部网络 + 服务名
+    command: ["-input", "/data/input.json"]
+    volumes:
+      - ./testdata:/data:ro
+    networks:
+      - backend
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  backend:
+    driver: bridge

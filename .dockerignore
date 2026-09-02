@@ -1,0 +1,8 @@
+.git
+.gitignore
+.gocache
+bin
+*.exe
+*.md
+testdata
+out.json
