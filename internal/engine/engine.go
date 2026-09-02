@@ -142,6 +142,9 @@ func (e *Engine) Identify(rec InputRecord) Result {
 		if intIn(r.Ports, rec.Port) {
 			conf = math.Min(maxConfidence, conf+portBonus)
 		}
+		// Rules are data loaded at runtime; keep externally visible confidence
+		// within the API contract even when a custom rule has a bad value.
+		conf = clampConfidence(conf)
 		if best == nil || r.Priority > best.Priority ||
 			(r.Priority == best.Priority && conf > bestConf) {
 			best, bestMatch, bestConf = r, m, conf
@@ -236,3 +239,13 @@ func intIn(list []int, v int) bool {
 }
 
 func round2(f float64) float64 { return math.Round(f*100) / 100 }
+
+func clampConfidence(f float64) float64 {
+	if math.IsNaN(f) || f < 0 {
+		return 0
+	}
+	if f > 1 {
+		return 1
+	}
+	return f
+}

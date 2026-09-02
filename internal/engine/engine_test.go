@@ -1,8 +1,11 @@
 package engine
 
 import (
+	"encoding/json"
 	"math"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -79,6 +82,76 @@ func TestIdentifyNeverPanics(t *testing.T) {
 		if r.Protocol == "" {
 			t.Errorf("case %d: protocol must never be empty", i)
 		}
+	}
+}
+
+func TestDecodeRecords(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want int
+	}{
+		{name: "array", body: `[{"ip":"127.0.0.1","port":80,"banner":"HTTP/1.1 200 OK"}]`, want: 1},
+		{name: "wrapper", body: `{"records":[{"ip":"127.0.0.1","port":22,"banner":"SSH-2.0-test"}]}`, want: 1},
+		{name: "empty", body: " \n\t", want: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := DecodeRecords([]byte(tc.body))
+			if err != nil || len(got) != tc.want {
+				t.Fatalf("DecodeRecords() = %#v, %v; want %d records", got, err, tc.want)
+			}
+		})
+	}
+	if _, err := DecodeRecords([]byte(`{"records":`)); err == nil {
+		t.Fatal("malformed JSON should return an error")
+	}
+}
+
+func TestConfidenceIsClamped(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "rules.json")
+	rules := `{"rules":[{"id":"high","match":"^x$","protocol":"X","confidence":9},{"id":"low","match":"^y$","protocol":"Y","confidence":-2}]}`
+	if err := os.WriteFile(path, []byte(rules), 0600); err != nil {
+		t.Fatal(err)
+	}
+	e, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := e.Identify(InputRecord{Banner: "x"}).Confidence; got != 1 {
+		t.Fatalf("high confidence = %v, want 1", got)
+	}
+	if got := e.Identify(InputRecord{Banner: "y"}).Confidence; got != 0 {
+		t.Fatalf("low confidence = %v, want 0", got)
+	}
+}
+
+func TestLoadRejectsInvalidRules(t *testing.T) {
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		"invalid-json": "{",
+		"empty-rules":  `{"rules":[]}`,
+		"bad-regex":    `{"rules":[{"id":"bad","match":"[","protocol":"X"}]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(dir, strings.ReplaceAll(name, "-", "_")+".json")
+			if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Load(path); err == nil {
+				t.Fatal("Load() unexpectedly succeeded")
+			}
+		})
+	}
+}
+
+func TestResultJSONShape(t *testing.T) {
+	b, err := json.Marshal(Result{IP: "1.2.3.4", Port: 22, Protocol: "SSH", Confidence: .95})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"os_hint":""`) {
+		t.Fatalf("result JSON missing os_hint: %s", b)
 	}
 }
 
